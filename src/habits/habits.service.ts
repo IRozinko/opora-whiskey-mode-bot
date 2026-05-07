@@ -63,7 +63,9 @@ export class HabitsService {
       create: { userId: user.id, date: this.today(), eveningDone: true },
     });
     if (note) {
-      await this.prisma.eveningReview.create({ userId: user.id, date: this.today(), tomorrowStep: note });
+      await this.prisma.eveningReview.create({
+        data: { userId: user.id, date: this.today(), tomorrowStep: note },
+      });
     }
     return `Вечерний разбор отмечен.\n\nНе идеально — и не нужно. Главное: день закрыт осознанно.`;
   }
@@ -71,14 +73,18 @@ export class HabitsService {
   async markVoice(telegramUser: { id: number; username?: string; first_name?: string }, rawText?: string) {
     const user = await this.ensureUser(telegramUser);
     const phrase = rawText?.replace(/^\/voice_done/i, '').trim() || undefined;
-    await this.prisma.voicePractice.create({ userId: user.id, practiceType: 'daily', phrase, completed: true });
+    await this.prisma.voicePractice.create({
+      data: { userId: user.id, practiceType: 'daily', phrase, completed: true },
+    });
     return `Голосовая практика отмечена.\n\nГолос дороже становится не от громкости, а от спокойствия и опоры.`;
   }
 
   async markOutfit(telegramUser: { id: number; username?: string; first_name?: string }, rawText?: string) {
     const user = await this.ensureUser(telegramUser);
     const scenario = rawText?.replace(/^\/look_done/i, '').trim() || 'daily';
-    await this.prisma.outfitLog.create({ userId: user.id, scenario, recommendation: 'marked_done' });
+    await this.prisma.outfitLog.create({
+      data: { userId: user.id, scenario, recommendation: 'marked_done' },
+    });
     return `Образ отмечен.\n\nСобранность — это не понты. Это уважение к себе и к людям рядом.`;
   }
 
