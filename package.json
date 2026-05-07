@@ -12,6 +12,7 @@
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\" \"prisma/**/*.prisma\"",
     "postinstall": "npx prisma@6.0.1 generate",
+    "heroku-postbuild": "npm run build",
     "prisma:generate": "npx prisma@6.0.1 generate",
     "prisma:migrate": "npx prisma@6.0.1 migrate dev",
     "prisma:db:push": "npx prisma@6.0.1 db push --skip-generate",
