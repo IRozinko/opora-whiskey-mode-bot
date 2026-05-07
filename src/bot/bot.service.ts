@@ -54,6 +54,10 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     bot.command('stats', async (ctx) => ctx.reply(await this.habitsService.stats(ctx.from as TelegramUser)));
     bot.command('habitcalendar', async (ctx) => ctx.reply(await this.habitsService.habitCalendar(ctx.from as TelegramUser)));
 
+    bot.command('nerve_status', (ctx) => ctx.reply(this.nerveStatusText(ctx.message.text)));
+    bot.command('nerve', (ctx) => ctx.reply(this.nerveStatusText(ctx.message.text)));
+    bot.command('poke', (ctx) => ctx.reply(this.pokeText()));
+
     bot.command('reset', (ctx) => ctx.reply(this.resetText()));
     bot.command('voice', (ctx) => ctx.reply(this.voiceText()));
     bot.command('look', (ctx) => ctx.reply(this.lookText()));
@@ -119,11 +123,26 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
   }
 
   private startText() {
-    return `Опора включена.\n\nЯ тут не для того, чтобы давить или стыдить.\nЯ помогаю держать курс: внешний вид, голос, семья, работа, деньги, восстановление.\n\nГлавный принцип:\nНе камень. Опора.\n\nКоманды:\n/morning — утренний ритуал + отметка\n/evening — вечерний разбор\n/morning_done — отметить утро\n/evening_done — отметить вечер\n/stats — статистика привычек\n/habitcalendar — календарь привычек\n/help — все команды`;
+    return `Опора включена.\n\nЯ тут не для того, чтобы давить или стыдить.\nЯ помогаю держать курс: внешний вид, голос, семья, работа, деньги, восстановление.\n\nГлавный принцип:\nНе камень. Опора.\n\nКоманды:\n/morning — утренний ритуал + отметка\n/evening — вечерний разбор\n/morning_done — отметить утро\n/evening_done — отметить вечер\n/stats — статистика привычек\n/habitcalendar — календарь привычек\n/nerve_status — потыкать палкой в нервную систему\n/help — все команды`;
   }
 
   private helpText() {
-    return `Команды Опоры:\n\nРутины и статистика:\n/morning\n/morning_done\n/evening\n/evening_done\n/voice_done\n/look_done офис\n/stats\n/habitcalendar\n/reset\n/today\n/podcast\n\nКоммуникация:\n/status желтый 40 минут\n/phrase <ситуация>\n/silent\n/voice\n\nСтиль:\n/look\n\nФинансы:\n/expense 245 happy meal сыну\n/income 4000 eur вторая работа\n/money\n/setlimit доставки 15000\n/limits\n/debts\n/paydebt 10000 кредитка 1\n/goals\n/setgoal резерв 500000\n/save 10000 резерв\n/weekmoney\n/month\n/last 10\n/editlast 300 новое описание\n/delete_last\n/export\n/car\n/canbuy 1800 щетка для бороды\n/categories\n/aiusage`;
+    return `Команды Опоры:\n\nРутины и статистика:\n/morning\n/morning_done\n/evening\n/evening_done\n/voice_done\n/look_done офис\n/stats\n/habitcalendar\n/nerve_status\n/poke\n/reset\n/today\n/podcast\n\nКоммуникация:\n/status желтый 40 минут\n/phrase <ситуация>\n/silent\n/voice\n\nСтиль:\n/look\n\nФинансы:\n/expense 245 happy meal сыну\n/income 4000 eur вторая работа\n/money\n/setlimit доставки 15000\n/limits\n/debts\n/paydebt 10000 кредитка 1\n/goals\n/setgoal резерв 500000\n/save 10000 резерв\n/weekmoney\n/month\n/last 10\n/editlast 300 новое описание\n/delete_last\n/export\n/car\n/canbuy 1800 щетка для бороды\n/categories\n/aiusage`;
+  }
+
+  private nerveStatusText(text: string) {
+    const normalized = text.toLowerCase();
+    if (normalized.includes('red') || normalized.includes('крас') || normalized.includes('труп')) {
+      return `🔴 Нервная система: “потыкали палкой — признаков продуктивности нет”.\n\nРежим:\n1. Не принимать больших решений.\n2. Не спорить.\n3. Не покупать Гелик.\n4. Вода + еда + 10 минут тишины.\n5. Один маленький шаг или домой.\n\nФраза: папа не умер, папа в энергосбережении.`;
+    }
+    if (normalized.includes('yellow') || normalized.includes('жел') || normalized.includes('квадрат')) {
+      return `🟡 Нервная система: квадратная голова, но процессор ещё отвечает.\n\nРежим:\n1. Только механические задачи.\n2. Таймер 25 минут.\n3. Никакой героики.\n4. Чай/вода.\n5. После — статус и пауза.\n\nФраза: работаем не мощно, а аккуратно.`;
+    }
+    return `🟢 Нервная система: живой человек, местами даже функциональный.\n\nПроверка палкой пройдена.\n\nРежим:\n1. Один главный фокус.\n2. Не распыляться.\n3. Записать расходы.\n4. Не превращаться в камень.\n\nДля ручного режима:\n/nerve_status yellow\n/nerve_status red`;
+  }
+
+  private pokeText() {
+    return `*тык палкой*\n\nОбъект издаёт звук, просит чай и говорит “ещё одну задачку закрою”.\n\nДиагноз: живой, но не эксплуатировать на полную мощность.`;
   }
 
   private morningText() {
