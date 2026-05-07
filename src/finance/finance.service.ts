@@ -80,11 +80,7 @@ export class FinanceService {
 
   categorizeExpense(description: string): string {
     const text = description.toLowerCase();
-
-    if (/(happy meal|хэппи|наггет|бульон.*сын|сын.*бульон|макдональдс.*сын|mcdonald.*сын)/i.test(text)) {
-      return 'Safe food сына';
-    }
-
+    if (/(happy meal|хэппи|наггет|бульон.*сын|сын.*бульон|макдональдс.*сын|mcdonald.*сын)/i.test(text)) return 'Safe food сына';
     if (/(кофе|перекус|булоч|круассан|снэк|snack)/i.test(text)) return 'Кофе/перекусы';
     if (/(суши|пицц|доставка|glovo|bolt food|ракета|еда)/i.test(text)) return 'Кафе/доставки семьи';
     if (/(аптек|лекар|медицин|врач|анализ|таблет)/i.test(text)) return 'Медицина/аптека';
@@ -101,7 +97,6 @@ export class FinanceService {
     if (/(барбер|маникюр|крем|spf|духи|парфюм|бритв|бород)/i.test(text)) return 'Уход/барбер/маникюр';
     if (/(кошелек|ключ|рюкзак|сумка|edc|чехол|очки|часы)/i.test(text)) return 'EDC/стиль';
     if (/(кредит|кредитк|долг)/i.test(text)) return 'Кредитки';
-
     return 'Прочее';
   }
 
@@ -114,19 +109,15 @@ export class FinanceService {
         username: telegramUser.username,
         firstName: telegramUser.first_name,
         profile: { create: { primaryGoals: ['выглядеть собранно', 'говорить увереннее', 'научиться не исчезать', 'закрыть кредитки', 'собрать резерв', 'купить машину без тревоги'] } },
-        debts: {
-          create: [
-            { name: 'Кредитка 1', totalAmount: 70000, remainingAmount: 70000, monthlyPayment: 4000, type: 'credit_card' },
-            { name: 'Кредитка 2', totalAmount: 70000, remainingAmount: 70000, monthlyPayment: 4000, type: 'credit_card' },
-          ],
-        },
-        savingsGoals: {
-          create: [
-            { name: 'Минимальный резерв', targetAmount: 300000, currentAmount: 0, priority: 1 },
-            { name: 'Рабочий резерв', targetAmount: 500000, currentAmount: 0, priority: 2 },
-            { name: 'Авто-фонд', targetAmount: 0, currentAmount: 0, priority: 3, status: 'paused' },
-          ],
-        },
+        debts: { create: [
+          { name: 'Кредитка 1', totalAmount: 70000, remainingAmount: 70000, monthlyPayment: 4000, type: 'credit_card' },
+          { name: 'Кредитка 2', totalAmount: 70000, remainingAmount: 70000, monthlyPayment: 4000, type: 'credit_card' },
+        ] },
+        savingsGoals: { create: [
+          { name: 'Минимальный резерв', targetAmount: 300000, currentAmount: 0, priority: 1 },
+          { name: 'Рабочий резерв', targetAmount: 500000, currentAmount: 0, priority: 2 },
+          { name: 'Авто-фонд', targetAmount: 0, currentAmount: 0, priority: 3, status: 'paused' },
+        ] },
       },
     });
   }
@@ -138,24 +129,23 @@ export class FinanceService {
     return date;
   }
 
+  private async categorySpent(userId: number, category: string, currency = 'UAH') {
+    const result = await this.prisma.transaction.aggregate({ _sum: { amount: true }, where: { userId, type: TransactionType.expense, category, currency, transactionDate: { gte: this.monthStart() } } });
+    return Number(result._sum.amount ?? 0);
+  }
+
   async addExpense(telegramUser: { id: number; username?: string; first_name?: string }, rawText: string) {
     const user = await this.ensureUser(telegramUser);
     const amount = this.parseAmount(rawText);
     if (!amount) return 'Не увидел сумму. Формат: /expense 245 happy meal сыну';
-
     const description = rawText.replace(/^\/expense/i, '').replace(String(amount), '').trim();
     const currency = this.detectCurrency(rawText);
     const category = this.categorizeExpense(description);
-
     await this.prisma.transaction.create({ data: { userId: user.id, type: TransactionType.expense, amount, currency, category, description } });
     const spent = await this.categorySpent(user.id, category, currency);
     const budget = await this.prisma.budget.findUnique({ where: { userId_category: { userId: user.id, category } } });
-
-    const limitText = budget
-      ? `\nЛимит: ${Number(budget.monthlyLimit).toLocaleString('ru-RU')} ${budget.currency}.\nОстаток: ${(Number(budget.monthlyLimit) - spent).toLocaleString('ru-RU')} ${budget.currency}.`
-      : '\nЛимит пока не задан. Можно задать через /setlimit.';
+    const limitText = budget ? `\nЛимит: ${Number(budget.monthlyLimit).toLocaleString('ru-RU')} ${budget.currency}.\nОстаток: ${(Number(budget.monthlyLimit) - spent).toLocaleString('ru-RU')} ${budget.currency}.` : '\nЛимит пока не задан. Можно задать через /setlimit.';
     const safeFoodNote = category === 'Safe food сына' ? '\n\nЭто плановая семейная статья, не хаотичная доставка.' : '';
-
     return `Записал: ${amount.toLocaleString('ru-RU')} ${currency} — ${category}.${safeFoodNote}\n\nЗа месяц по категории: ${spent.toLocaleString('ru-RU')} ${currency}.${limitText}\n\nФраза: не запрещаем жизнь, убираем хаос.`;
   }
 
@@ -163,11 +153,9 @@ export class FinanceService {
     const user = await this.ensureUser(telegramUser);
     const amount = this.parseAmount(rawText);
     if (!amount) return 'Не увидел сумму. Формат: /income 4000 eur вторая работа';
-
     const currency = this.detectCurrency(rawText);
     const description = rawText.replace(/^\/income/i, '').replace(String(amount), '').trim();
     await this.prisma.transaction.create({ data: { userId: user.id, type: TransactionType.income, amount, currency, category: description.toLowerCase().includes('чое') ? 'ЧОЕ' : 'Вторая работа', description } });
-
     if (currency === 'EUR') {
       const eurToUah = Number(this.configService.get<string>('EUR_TO_UAH') ?? 51.6);
       const grossUah = amount * eurToUah;
@@ -178,11 +166,6 @@ export class FinanceService {
       return `Записал доход: ${amount.toLocaleString('ru-RU')} EUR.\n\nОриентир ФОП 3 группа:\n- gross: ${grossUah.toLocaleString('ru-RU')} грн\n- единый налог 5%: ${singleTax.toLocaleString('ru-RU')} грн\n- военный сбор 1%: ${militaryTax.toLocaleString('ru-RU')} грн\n- ЕСВ: ${esv.toLocaleString('ru-RU')} грн\n\nОриентир чистыми: ${net.toLocaleString('ru-RU')} грн.`;
     }
     return `Записал доход: ${amount.toLocaleString('ru-RU')} ${currency}.`;
-  }
-
-  private async categorySpent(userId: number, category: string, currency = 'UAH') {
-    const result = await this.prisma.transaction.aggregate({ _sum: { amount: true }, where: { userId, type: TransactionType.expense, category, currency, transactionDate: { gte: this.monthStart() } } });
-    return Number(result._sum.amount ?? 0);
   }
 
   async setLimit(telegramUser: { id: number; username?: string; first_name?: string }, rawText: string) {
@@ -244,6 +227,78 @@ export class FinanceService {
     const rows = await this.prisma.transaction.groupBy({ by: ['category'], _sum: { amount: true }, where: { userId: user.id, type: TransactionType.expense, currency: 'UAH', transactionDate: { gte: weekStart } }, orderBy: { _sum: { amount: 'desc' } } });
     if (!rows.length) return 'За последние 7 дней расходов UAH пока нет.';
     return `Расходы за 7 дней:\n\n${rows.map((r) => `- ${r.category ?? 'Без категории'}: ${Number(r._sum.amount ?? 0).toLocaleString('ru-RU')} грн`).join('\n')}\n\nФраза: видим поток — управляем потоком.`;
+  }
+
+  async debtsSummary(telegramUser: { id: number; username?: string; first_name?: string }) {
+    const user = await this.ensureUser(telegramUser);
+    const debts = await this.prisma.debt.findMany({ where: { userId: user.id }, orderBy: { id: 'asc' } });
+    if (!debts.length) return 'Долгов в базе нет.';
+    const total = debts.reduce((sum, debt) => sum + Number(debt.remainingAmount), 0);
+    const lines = debts.map((debt, index) => `${index + 1}. ${debt.name}: остаток ${Number(debt.remainingAmount).toLocaleString('ru-RU')} грн, мин. платёж ${Number(debt.monthlyPayment ?? 0).toLocaleString('ru-RU')} грн`);
+    return `Долги / кредитки:\n\n${lines.join('\n')}\n\nИтого: ${total.toLocaleString('ru-RU')} грн.\n\nПогасить: /paydebt 10000 кредитка 1`;
+  }
+
+  async goalsSummary(telegramUser: { id: number; username?: string; first_name?: string }) {
+    const user = await this.ensureUser(telegramUser);
+    const goals = await this.prisma.savingsGoal.findMany({ where: { userId: user.id }, orderBy: { priority: 'asc' } });
+    if (!goals.length) return 'Целей пока нет.';
+    return `Цели:\n\n${goals.map((goal) => {
+      const current = Number(goal.currentAmount);
+      const target = Number(goal.targetAmount);
+      const pct = target > 0 ? Math.round((current / target) * 100) : 0;
+      return `- ${goal.name}: ${current.toLocaleString('ru-RU')} / ${target.toLocaleString('ru-RU')} грн (${pct}%, ${goal.status})`;
+    }).join('\n')}\n\nПополнить: /save 10000 резерв\nИзменить цель: /setgoal резерв 500000`;
+  }
+
+  async setGoal(telegramUser: { id: number; username?: string; first_name?: string }, rawText: string) {
+    const user = await this.ensureUser(telegramUser);
+    const amount = this.parseAmount(rawText);
+    if (!amount) return 'Формат: /setgoal резерв 500000 или /setgoal авто 800000';
+    const isCar = /авто|машин|car/i.test(rawText);
+    const isWorkingReserve = /рабоч/i.test(rawText);
+    const name = isCar ? 'Авто-фонд' : isWorkingReserve ? 'Рабочий резерв' : 'Минимальный резерв';
+    const goal = await this.prisma.savingsGoal.findFirst({ where: { userId: user.id, name } });
+    if (!goal) return `Цель ${name} не найдена.`;
+    await this.prisma.savingsGoal.update({ where: { id: goal.id }, data: { targetAmount: amount, status: isCar && amount > 0 ? 'active' : goal.status } });
+    return `Цель обновлена: ${name} — ${amount.toLocaleString('ru-RU')} грн.`;
+  }
+
+  async lastTransactions(telegramUser: { id: number; username?: string; first_name?: string }, rawText: string) {
+    const user = await this.ensureUser(telegramUser);
+    const amount = this.parseAmount(rawText);
+    const limit = amount ? Math.min(Math.max(Math.floor(amount), 1), 20) : 10;
+    const rows = await this.prisma.transaction.findMany({ where: { userId: user.id }, orderBy: { id: 'desc' }, take: limit });
+    if (!rows.length) return 'Операций пока нет.';
+    return `Последние операции:\n\n${rows.map((row) => `#${row.id} ${row.type === TransactionType.expense ? '−' : '+'}${Number(row.amount).toLocaleString('ru-RU')} ${row.currency} — ${row.category ?? 'Без категории'} — ${row.description ?? ''}`).join('\n')}\n\nУдалить последнюю: /delete_last\nИсправить последнюю: /editlast 300 новое описание`;
+  }
+
+  async deleteLastTransaction(telegramUser: { id: number; username?: string; first_name?: string }) {
+    const user = await this.ensureUser(telegramUser);
+    const last = await this.prisma.transaction.findFirst({ where: { userId: user.id }, orderBy: { id: 'desc' } });
+    if (!last) return 'Удалять нечего: операций пока нет.';
+    await this.prisma.transaction.delete({ where: { id: last.id } });
+    return `Удалил последнюю операцию: #${last.id} ${Number(last.amount).toLocaleString('ru-RU')} ${last.currency} — ${last.category ?? 'Без категории'} — ${last.description ?? ''}.`;
+  }
+
+  async editLastTransaction(telegramUser: { id: number; username?: string; first_name?: string }, rawText: string) {
+    const user = await this.ensureUser(telegramUser);
+    const amount = this.parseAmount(rawText);
+    if (!amount) return 'Формат: /editlast 300 новое описание';
+    const last = await this.prisma.transaction.findFirst({ where: { userId: user.id }, orderBy: { id: 'desc' } });
+    if (!last) return 'Исправлять нечего: операций пока нет.';
+    const description = rawText.replace(/^\/editlast/i, '').replace(String(amount), '').trim();
+    const category = last.type === TransactionType.expense ? this.categorizeExpense(description) : last.category;
+    await this.prisma.transaction.update({ where: { id: last.id }, data: { amount, description, category } });
+    return `Исправил последнюю операцию #${last.id}: ${amount.toLocaleString('ru-RU')} ${last.currency} — ${category ?? 'Без категории'} — ${description}.`;
+  }
+
+  async exportCsv(telegramUser: { id: number; username?: string; first_name?: string }) {
+    const user = await this.ensureUser(telegramUser);
+    const rows = await this.prisma.transaction.findMany({ where: { userId: user.id }, orderBy: { id: 'desc' }, take: 200 });
+    if (!rows.length) return 'Экспорт пустой: операций пока нет.';
+    const header = 'id,date,type,amount,currency,category,description';
+    const body = rows.map((row) => [row.id, row.transactionDate.toISOString().slice(0, 10), row.type, row.amount, row.currency, row.category ?? '', (row.description ?? '').replace(/\n/g, ' ')].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    return `${header}\n${body}`;
   }
 
   async moneySummary(telegramUser: { id: number; username?: string; first_name?: string }) {
