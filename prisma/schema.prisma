@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TransactionType {
+  income
+  expense
+}
+
+enum SavingsGoalStatus {
+  active
+  paused
+  completed
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  telegramId BigInt   @unique @map("telegram_id")
+  username    String?
+  firstName   String?  @map("first_name")
+  timezone    String   @default("Europe/Kyiv")
+  language    String   @default("ru")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  profile        UserProfile?
+  checkins       DailyCheckin[]
+  eveningReviews EveningReview[]
+  workStatuses   WorkStatus[]
+  phraseRequests PhraseRequest[]
+  voicePractices VoicePractice[]
+  outfitLogs     OutfitLog[]
+  transactions   Transaction[]
+  budgets        Budget[]
+  debts          Debt[]
+  savingsGoals   SavingsGoal[]
+  carsShortlist  CarShortlist[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id                  Int      @id @default(autoincrement())
+  userId              Int      @unique @map("user_id")
+  archetype           String   @default("дорогой виски")
+  hasFamily           Boolean  @default(true) @map("has_family")
+  morningWalkMinutes  Int      @default(15) @map("morning_walk_minutes")
+  usesOneEarbud       Boolean  @default(true) @map("uses_one_earbud")
+  barberFrequencyDays Int      @default(21) @map("barber_frequency_days")
+  fopGroup            String   @default("3") @map("fop_group")
+  singleTaxRate       Decimal  @default(5.00) @map("single_tax_rate") @db.Decimal(5, 2)
+  militaryTaxRate     Decimal  @default(1.00) @map("military_tax_rate") @db.Decimal(5, 2)
+  esvMonthly          Decimal  @default(1902.34) @map("esv_monthly") @db.Decimal(12, 2)
+  primaryGoals        String[] @default([]) @map("primary_goals")
+  notes               String?
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profile")
+}
+
+model DailyCheckin {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  date         DateTime @db.Date
+  morningDone  Boolean  @default(false) @map("morning_done")
+  eveningDone  Boolean  @default(false) @map("evening_done")
+  mood         String?
+  focus        String?
+  phraseOfDay  String?  @map("phrase_of_day")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("daily_checkins")
+}
+
+model EveningReview {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  date            DateTime @db.Date
+  whereSilent     String?  @map("where_silent")
+  wantedToSay     String?  @map("wanted_to_say")
+  fear            String?
+  didForFamily    String?  @map("did_for_family")
+  didForSelf      String?  @map("did_for_self")
+  plannedExpenses String?  @map("planned_expenses")
+  chaoticExpenses String?  @map("chaotic_expenses")
+  tomorrowStep    String?  @map("tomorrow_step")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("evening_reviews")
+}
+
+model WorkStatus {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @map("user_id")
+  status           String
+  workMinutes      Int?     @map("work_minutes")
+  generatedMessage String?  @map("generated_message")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("work_statuses")
+}
+
+model PhraseRequest {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  situation       String
+  generatedPhrase String   @map("generated_phrase")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("phrase_requests")
+}
+
+model VoicePractice {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  practiceType String?  @map("practice_type")
+  phrase       String?
+  completed    Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("voice_practices")
+}
+
+model OutfitLog {
+  id             Int      @id @default(autoincrement())
+  userId         Int      @map("user_id")
+  scenario       String?
+  recommendation String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("outfit_logs")
+}
+
+model Transaction {
+  id              Int             @id @default(autoincrement())
+  userId          Int             @map("user_id")
+  type            TransactionType
+  amount          Decimal         @db.Decimal(12, 2)
+  currency        String          @default("UAH")
+  category        String?
+  description     String?
+  transactionDate DateTime        @default(now()) @map("transaction_date") @db.Date
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+model Budget {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  category     String
+  monthlyLimit Decimal  @map("monthly_limit") @db.Decimal(12, 2)
+  currency     String   @default("UAH")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@map("budgets")
+}
+
+model Debt {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  name            String
+  totalAmount     Decimal? @map("total_amount") @db.Decimal(12, 2)
+  remainingAmount Decimal  @map("remaining_amount") @db.Decimal(12, 2)
+  monthlyPayment  Decimal? @map("monthly_payment") @db.Decimal(12, 2)
+  interestRate    Decimal? @map("interest_rate") @db.Decimal(5, 2)
+  type            String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("debts")
+}
+
+model SavingsGoal {
+  id            Int               @id @default(autoincrement())
+  userId        Int               @map("user_id")
+  name          String
+  targetAmount  Decimal           @map("target_amount") @db.Decimal(12, 2)
+  currentAmount Decimal           @default(0) @map("current_amount") @db.Decimal(12, 2)
+  priority      Int               @default(1)
+  status        SavingsGoalStatus @default(active)
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("savings_goals")
+}
+
+model CarShortlist {
+  id                   Int      @id @default(autoincrement())
+  userId               Int      @map("user_id")
+  model                String
+  targetPriceUsd        Decimal? @map("target_price_usd") @db.Decimal(12, 2)
+  familyComfortScore   Int?     @map("family_comfort_score")
+  backComfortScore     Int?     @map("back_comfort_score")
+  maintenanceRiskScore Int?     @map("maintenance_risk_score")
+  notes                String?
+  status               String   @default("watching")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("cars_shortlist")
+}
