@@ -53,47 +53,30 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     bot.command('evening', (ctx) => ctx.reply(this.eveningText()));
     bot.command('podcast', (ctx) => ctx.reply(this.podcastText()));
     bot.command('categories', (ctx) => ctx.reply(this.categoriesText()));
-    bot.command('debt', (ctx) => ctx.reply(this.debtText()));
     bot.command('reserve', (ctx) => ctx.reply(this.reserveText()));
     bot.command('car', (ctx) => ctx.reply(this.carText()));
     bot.command('today', (ctx) => ctx.reply(this.todayText()));
     bot.command('aiusage', (ctx) => ctx.reply(this.aiService.getUsageText()));
 
-    bot.command('expense', async (ctx) => {
-      const response = await this.financeService.addExpense(ctx.from as TelegramUser, ctx.message.text);
-      await ctx.reply(response);
-    });
-    bot.command('income', async (ctx) => {
-      const response = await this.financeService.addIncome(ctx.from as TelegramUser, ctx.message.text);
-      await ctx.reply(response);
-    });
-    bot.command('money', async (ctx) => {
-      const response = await this.financeService.moneySummary(ctx.from as TelegramUser);
-      await ctx.reply(response);
-    });
-    bot.command('setlimit', async (ctx) => {
-      const response = await this.financeService.setLimit(ctx.from as TelegramUser, ctx.message.text);
-      await ctx.reply(response);
-    });
-    bot.command('limits', async (ctx) => {
-      const response = await this.financeService.limits(ctx.from as TelegramUser);
-      await ctx.reply(response);
-    });
-    bot.command('paydebt', async (ctx) => {
-      const response = await this.financeService.updateDebt(ctx.from as TelegramUser, ctx.message.text);
-      await ctx.reply(response);
-    });
-    bot.command('save', async (ctx) => {
-      const response = await this.financeService.addSaving(ctx.from as TelegramUser, ctx.message.text);
-      await ctx.reply(response);
-    });
-    bot.command('weekmoney', async (ctx) => {
-      const response = await this.financeService.weekSummary(ctx.from as TelegramUser);
-      await ctx.reply(response);
-    });
-    bot.command('month', async (ctx) => {
-      const response = await this.financeService.moneySummary(ctx.from as TelegramUser);
-      await ctx.reply(response);
+    bot.command('expense', async (ctx) => ctx.reply(await this.financeService.addExpense(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('income', async (ctx) => ctx.reply(await this.financeService.addIncome(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('money', async (ctx) => ctx.reply(await this.financeService.moneySummary(ctx.from as TelegramUser)));
+    bot.command('month', async (ctx) => ctx.reply(await this.financeService.moneySummary(ctx.from as TelegramUser)));
+    bot.command('setlimit', async (ctx) => ctx.reply(await this.financeService.setLimit(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('limits', async (ctx) => ctx.reply(await this.financeService.limits(ctx.from as TelegramUser)));
+    bot.command('debt', async (ctx) => ctx.reply(await this.financeService.debtsSummary(ctx.from as TelegramUser)));
+    bot.command('debts', async (ctx) => ctx.reply(await this.financeService.debtsSummary(ctx.from as TelegramUser)));
+    bot.command('paydebt', async (ctx) => ctx.reply(await this.financeService.updateDebt(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('save', async (ctx) => ctx.reply(await this.financeService.addSaving(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('goals', async (ctx) => ctx.reply(await this.financeService.goalsSummary(ctx.from as TelegramUser)));
+    bot.command('setgoal', async (ctx) => ctx.reply(await this.financeService.setGoal(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('weekmoney', async (ctx) => ctx.reply(await this.financeService.weekSummary(ctx.from as TelegramUser)));
+    bot.command('last', async (ctx) => ctx.reply(await this.financeService.lastTransactions(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('delete_last', async (ctx) => ctx.reply(await this.financeService.deleteLastTransaction(ctx.from as TelegramUser)));
+    bot.command('editlast', async (ctx) => ctx.reply(await this.financeService.editLastTransaction(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('export', async (ctx) => {
+      const csv = await this.financeService.exportCsv(ctx.from as TelegramUser);
+      await ctx.reply(csv.length > 3500 ? `${csv.slice(0, 3500)}\n\n...экспорт обрезан Telegram-лимитом. Полный файл добавим отдельной функцией.` : csv);
     });
 
     bot.command('phrase', async (ctx) => {
@@ -127,11 +110,11 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
   }
 
   private startText() {
-    return `Опора включена.\n\nЯ тут не для того, чтобы давить или стыдить.\nЯ помогаю держать курс: внешний вид, голос, семья, работа, деньги, восстановление.\n\nГлавный принцип:\nНе камень. Опора.\n\nКоманды:\n/morning — утренний ритуал\n/evening — вечерний разбор\n/status — статус вечера для семьи\n/phrase — сформулировать фразу\n/silent — разобрать молчание\n/voice — голос и дикция\n/look — образ\n/reset — вернуться в спокойствие\n/today — что делать сейчас\n/money — финансы\n/expense — записать расход\n/income — записать доход`;
+    return `Опора включена.\n\nЯ тут не для того, чтобы давить или стыдить.\nЯ помогаю держать курс: внешний вид, голос, семья, работа, деньги, восстановление.\n\nГлавный принцип:\nНе камень. Опора.\n\nКоманды:\n/morning — утренний ритуал\n/evening — вечерний разбор\n/status — статус вечера для семьи\n/today — что делать сейчас\n/money — финансы\n/expense — записать расход\n/income — записать доход\n/help — все команды`;
   }
 
   private helpText() {
-    return `Команды Опоры:\n\nРутины:\n/morning\n/evening\n/reset\n/today\n/podcast\n\nКоммуникация:\n/status желтый 40 минут\n/phrase <ситуация>\n/silent\n/voice\n\nСтиль:\n/look\n\nФинансы:\n/expense 245 happy meal сыну\n/income 4000 eur вторая работа\n/money\n/setlimit доставки 15000\n/limits\n/paydebt 10000 кредитка 1\n/save 10000 резерв\n/weekmoney\n/month\n/debt\n/reserve\n/car\n/canbuy 1800 щетка для бороды\n/categories\n/aiusage`;
+    return `Команды Опоры:\n\nРутины:\n/morning\n/evening\n/reset\n/today\n/podcast\n\nКоммуникация:\n/status желтый 40 минут\n/phrase <ситуация>\n/silent\n/voice\n\nСтиль:\n/look\n\nФинансы:\n/expense 245 happy meal сыну\n/income 4000 eur вторая работа\n/money\n/setlimit доставки 15000\n/limits\n/debts\n/paydebt 10000 кредитка 1\n/goals\n/setgoal резерв 500000\n/save 10000 резерв\n/weekmoney\n/month\n/last 10\n/editlast 300 новое описание\n/delete_last\n/export\n/car\n/canbuy 1800 щетка для бороды\n/categories\n/aiusage`;
   }
 
   private morningText() {
@@ -177,10 +160,6 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
   private categoriesText() {
     return `Категории расходов:\n\nАренда\nКоммуналка\nШкола сына\nДочка\nПродукты домой\nSafe food сына\nКафе/доставки семьи\nКофе/перекусы\nСиделки/дедушка\nМедицина/аптека\nТранспорт/такси\nСвязь/интернет\nПодписки\nОдежда/обувь\nУход/барбер/маникюр\nEDC/стиль\nКредитки\nРезерв\nАвто-фонд\nПрочее`;
-  }
-
-  private debtText() {
-    return `Кредитки:\n\n1. Кредитка 1: остаток 70 000 грн, мин. платёж 4 000 грн.\n2. Кредитка 2: остаток 70 000 грн, мин. платёж 4 000 грн.\n\nДля погашения: /paydebt 10000 кредитка 1\n\nФокус: закрыть кредитки до авто-фонда.`;
   }
 
   private reserveText() {
