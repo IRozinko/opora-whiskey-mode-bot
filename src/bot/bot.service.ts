@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Telegraf } from 'telegraf';
 import { AiService } from '../ai/ai.service';
 import { FinanceService } from '../finance/finance.service';
+import { HabitsService } from '../habits/habits.service';
 
 type TelegramUser = {
   id: number;
@@ -19,6 +20,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     private readonly configService: ConfigService,
     private readonly aiService: AiService,
     private readonly financeService: FinanceService,
+    private readonly habitsService: HabitsService,
   ) {}
 
   async onModuleInit() {
@@ -42,9 +44,16 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     bot.help((ctx) => ctx.reply(this.helpText()));
 
     bot.command('morning', async (ctx) => {
-      await this.financeService.ensureUser(ctx.from as TelegramUser);
+      await this.habitsService.markMorning(ctx.from as TelegramUser, ctx.message.text);
       await ctx.reply(this.morningText());
     });
+    bot.command('morning_done', async (ctx) => ctx.reply(await this.habitsService.markMorning(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('evening_done', async (ctx) => ctx.reply(await this.habitsService.markEvening(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('voice_done', async (ctx) => ctx.reply(await this.habitsService.markVoice(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('look_done', async (ctx) => ctx.reply(await this.habitsService.markOutfit(ctx.from as TelegramUser, ctx.message.text)));
+    bot.command('stats', async (ctx) => ctx.reply(await this.habitsService.stats(ctx.from as TelegramUser)));
+    bot.command('habitcalendar', async (ctx) => ctx.reply(await this.habitsService.habitCalendar(ctx.from as TelegramUser)));
+
     bot.command('reset', (ctx) => ctx.reply(this.resetText()));
     bot.command('voice', (ctx) => ctx.reply(this.voiceText()));
     bot.command('look', (ctx) => ctx.reply(this.lookText()));
@@ -110,15 +119,15 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
   }
 
   private startText() {
-    return `Опора включена.\n\nЯ тут не для того, чтобы давить или стыдить.\nЯ помогаю держать курс: внешний вид, голос, семья, работа, деньги, восстановление.\n\nГлавный принцип:\nНе камень. Опора.\n\nКоманды:\n/morning — утренний ритуал\n/evening — вечерний разбор\n/status — статус вечера для семьи\n/today — что делать сейчас\n/money — финансы\n/expense — записать расход\n/income — записать доход\n/help — все команды`;
+    return `Опора включена.\n\nЯ тут не для того, чтобы давить или стыдить.\nЯ помогаю держать курс: внешний вид, голос, семья, работа, деньги, восстановление.\n\nГлавный принцип:\nНе камень. Опора.\n\nКоманды:\n/morning — утренний ритуал + отметка\n/evening — вечерний разбор\n/morning_done — отметить утро\n/evening_done — отметить вечер\n/stats — статистика привычек\n/habitcalendar — календарь привычек\n/help — все команды`;
   }
 
   private helpText() {
-    return `Команды Опоры:\n\nРутины:\n/morning\n/evening\n/reset\n/today\n/podcast\n\nКоммуникация:\n/status желтый 40 минут\n/phrase <ситуация>\n/silent\n/voice\n\nСтиль:\n/look\n\nФинансы:\n/expense 245 happy meal сыну\n/income 4000 eur вторая работа\n/money\n/setlimit доставки 15000\n/limits\n/debts\n/paydebt 10000 кредитка 1\n/goals\n/setgoal резерв 500000\n/save 10000 резерв\n/weekmoney\n/month\n/last 10\n/editlast 300 новое описание\n/delete_last\n/export\n/car\n/canbuy 1800 щетка для бороды\n/categories\n/aiusage`;
+    return `Команды Опоры:\n\nРутины и статистика:\n/morning\n/morning_done\n/evening\n/evening_done\n/voice_done\n/look_done офис\n/stats\n/habitcalendar\n/reset\n/today\n/podcast\n\nКоммуникация:\n/status желтый 40 минут\n/phrase <ситуация>\n/silent\n/voice\n\nСтиль:\n/look\n\nФинансы:\n/expense 245 happy meal сыну\n/income 4000 eur вторая работа\n/money\n/setlimit доставки 15000\n/limits\n/debts\n/paydebt 10000 кредитка 1\n/goals\n/setgoal резерв 500000\n/save 10000 резерв\n/weekmoney\n/month\n/last 10\n/editlast 300 новое описание\n/delete_last\n/export\n/car\n/canbuy 1800 щетка для бороды\n/categories\n/aiusage`;
   }
 
   private morningText() {
-    return `Доброе утро.\n\nСегодня фокус: спокойный голос и присутствие.\n\nЧеклист:\n☐ вода\n☐ умывание\n☐ крем / SPF\n☐ борода\n☐ руки / ногти\n☐ одежда без хаоса\n☐ ключи\n☐ кошелёк\n☐ кофе\n☐ один главный фокус дня\n\nГолос:\nСкажи 3 раза медленно:\n“Я говорю спокойно. Я не исчезаю. Мне не нужно спешить.”\n\nФинансы:\n☐ записывать расходы\n☐ safe food сына — планово, не ругаем\n☐ кредитки важнее авто-фонда\n\nОдин шаг:\nсегодня один раз скажи “мне важно” вместо молчания.`;
+    return `Доброе утро.\n\nУтренний ритуал отмечен.\n\nСегодня фокус: спокойный голос и присутствие.\n\nЧеклист:\n☐ вода\n☐ умывание\n☐ крем / SPF\n☐ борода\n☐ руки / ногти\n☐ одежда без хаоса\n☐ ключи\n☐ кошелёк\n☐ кофе\n☐ один главный фокус дня\n\nГолос:\nСкажи 3 раза медленно:\n“Я говорю спокойно. Я не исчезаю. Мне не нужно спешить.”\n\nФинансы:\n☐ записывать расходы\n☐ safe food сына — планово, не ругаем\n☐ кредитки важнее авто-фонда`;
   }
 
   private todayText() {
@@ -130,11 +139,11 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
   }
 
   private voiceText() {
-    return `Голосовая тренировка на 5 минут.\n\n1. Дыхание: вдох 4 секунды, выдох 6 секунд — 5 раз.\n2. Резонанс: “ммм-ма”, “ммм-мо”, “ммм-му”.\n3. Дикция: бра-бро-бру-бры-бре, дра-дро-дру-дры-дре.\n4. Фраза: “Я готов говорить спокойно, но не готов ругаться.”`;
+    return `Голосовая тренировка на 5 минут.\n\n1. Дыхание: вдох 4 секунды, выдох 6 секунд — 5 раз.\n2. Резонанс: “ммм-ма”, “ммм-мо”, “ммм-му”.\n3. Дикция: бра-бро-бру-бры-бре, дра-дро-дру-дры-дре.\n4. Фраза: “Я готов говорить спокойно, но не готов ругаться.”\n\nПосле выполнения: /voice_done`;
   }
 
   private lookText() {
-    return `Куда собираем образ?\n\n1 — офис\n2 — конференция\n3 — прогулка\n4 — семейный выход\n5 — встреча\n6 — рыбалка\n7 — день рождения\n\nБазовое правило:\nтёмная плотная база + структура сверху + чистая обувь + часы + ключи/кошелёк без хаоса.`;
+    return `Куда собираем образ?\n\n1 — офис\n2 — конференция\n3 — прогулка\n4 — семейный выход\n5 — встреча\n6 — рыбалка\n7 — день рождения\n\nБазовое правило:\nтёмная плотная база + структура сверху + чистая обувь + часы + ключи/кошелёк без хаоса.\n\nОтметить: /look_done офис`;
   }
 
   private statusText(text: string) {
@@ -151,7 +160,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
   }
 
   private eveningText() {
-    return `Вечерний разбор. Без самобичевания.\n\nОтветь по пунктам:\n1. Где сегодня промолчал?\n2. Что хотел сказать?\n3. Чего боялся?\n4. Что сделал для семьи?\n5. Что сделал для себя?\n6. Какие расходы были плановыми?\n7. Какие были хаотичными?\n8. Один шаг на завтра?`;
+    return `Вечерний разбор. Без самобичевания.\n\nОтветь по пунктам:\n1. Где сегодня промолчал?\n2. Что хотел сказать?\n3. Чего боялся?\n4. Что сделал для семьи?\n5. Что сделал для себя?\n6. Какие расходы были плановыми?\n7. Какие были хаотичными?\n8. Один шаг на завтра?\n\nПосле выполнения: /evening_done один шаг на завтра`;
   }
 
   private podcastText() {
