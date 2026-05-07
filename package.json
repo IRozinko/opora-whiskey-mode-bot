@@ -17,7 +17,7 @@
     "prisma:migrate": "npx prisma@6.0.1 migrate dev",
     "prisma:db:push": "npx prisma@6.0.1 db push --skip-generate",
     "prisma:studio": "npx prisma@6.0.1 studio",
-    "deploy:start": "npm run build && npm run prisma:db:push && npm run start:prod"
+    "deploy:start": "npm run prisma:db:push && npm run start:prod"
   },
   "dependencies": {
     "@nestjs/cli": "^10.4.8",
