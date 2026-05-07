@@ -23,15 +23,12 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
-
     if (!token) {
       this.logger.warn('TELEGRAM_BOT_TOKEN is not configured. Bot is not started.');
       return;
     }
-
     this.bot = new Telegraf(token);
     this.registerHandlers(this.bot);
-
     await this.bot.launch();
     this.logger.log('Opora Telegram bot started');
   }
@@ -44,7 +41,10 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     bot.start((ctx) => ctx.reply(this.startText()));
     bot.help((ctx) => ctx.reply(this.helpText()));
 
-    bot.command('morning', (ctx) => ctx.reply(this.morningText()));
+    bot.command('morning', async (ctx) => {
+      await this.financeService.ensureUser(ctx.from as TelegramUser);
+      await ctx.reply(this.morningText());
+    });
     bot.command('reset', (ctx) => ctx.reply(this.resetText()));
     bot.command('voice', (ctx) => ctx.reply(this.voiceText()));
     bot.command('look', (ctx) => ctx.reply(this.lookText()));
@@ -56,22 +56,43 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     bot.command('debt', (ctx) => ctx.reply(this.debtText()));
     bot.command('reserve', (ctx) => ctx.reply(this.reserveText()));
     bot.command('car', (ctx) => ctx.reply(this.carText()));
+    bot.command('today', (ctx) => ctx.reply(this.todayText()));
+    bot.command('aiusage', (ctx) => ctx.reply(this.aiService.getUsageText()));
 
     bot.command('expense', async (ctx) => {
-      const user = ctx.from as TelegramUser;
-      const response = await this.financeService.addExpense(user, ctx.message.text);
+      const response = await this.financeService.addExpense(ctx.from as TelegramUser, ctx.message.text);
       await ctx.reply(response);
     });
-
     bot.command('income', async (ctx) => {
-      const user = ctx.from as TelegramUser;
-      const response = await this.financeService.addIncome(user, ctx.message.text);
+      const response = await this.financeService.addIncome(ctx.from as TelegramUser, ctx.message.text);
       await ctx.reply(response);
     });
-
     bot.command('money', async (ctx) => {
-      const user = ctx.from as TelegramUser;
-      const response = await this.financeService.moneySummary(user);
+      const response = await this.financeService.moneySummary(ctx.from as TelegramUser);
+      await ctx.reply(response);
+    });
+    bot.command('setlimit', async (ctx) => {
+      const response = await this.financeService.setLimit(ctx.from as TelegramUser, ctx.message.text);
+      await ctx.reply(response);
+    });
+    bot.command('limits', async (ctx) => {
+      const response = await this.financeService.limits(ctx.from as TelegramUser);
+      await ctx.reply(response);
+    });
+    bot.command('paydebt', async (ctx) => {
+      const response = await this.financeService.updateDebt(ctx.from as TelegramUser, ctx.message.text);
+      await ctx.reply(response);
+    });
+    bot.command('save', async (ctx) => {
+      const response = await this.financeService.addSaving(ctx.from as TelegramUser, ctx.message.text);
+      await ctx.reply(response);
+    });
+    bot.command('weekmoney', async (ctx) => {
+      const response = await this.financeService.weekSummary(ctx.from as TelegramUser);
+      await ctx.reply(response);
+    });
+    bot.command('month', async (ctx) => {
+      const response = await this.financeService.moneySummary(ctx.from as TelegramUser);
       await ctx.reply(response);
     });
 
@@ -81,10 +102,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         await ctx.reply('Опиши ситуацию после команды. Например:\n/phrase хочу сказать жене, что мне нужно 40 минут поработать');
         return;
       }
-
-      const response = await this.aiService.ask(
-        `Помоги сформулировать фразу для ситуации. Дай мягкую версию, короткую версию и фразу-якорь. Ситуация: ${situation}`,
-      );
+      const response = await this.aiService.ask(`Помоги сформулировать фразу для ситуации. Дай мягкую версию, короткую версию и фразу-якорь. Ситуация: ${situation}`);
       await ctx.reply(response);
     });
 
@@ -94,290 +112,83 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         await ctx.reply('Формат: /canbuy 1800 щетка для бороды');
         return;
       }
-
-      const response = await this.aiService.ask(
-        `Оцени покупку в стиле финансовой опоры. Учитывай приоритеты: кредитки в ноль, резерв 300-500 тыс, потом авто-фонд. Не стыди. Покупка: ${request}`,
-      );
+      const response = await this.aiService.ask(`Оцени покупку в стиле финансовой опоры. Учитывай приоритеты: кредитки в ноль, резерв 300-500 тыс, потом авто-фонд. Не стыди. Покупка: ${request}`);
       await ctx.reply(response);
     });
 
     bot.on('text', async (ctx) => {
       const text = ctx.message.text;
       if (text.startsWith('/')) return;
-
       const response = await this.aiService.ask(text, this.baseUserContext());
       await ctx.reply(response);
     });
 
-    bot.catch((error) => {
-      this.logger.error('Telegram bot error', error as Error);
-    });
+    bot.catch((error) => this.logger.error('Telegram bot error', error as Error));
   }
 
   private startText() {
-    return `Опора включена.
-
-Я тут не для того, чтобы давить или стыдить.
-Я помогаю держать курс: внешний вид, голос, семья, работа, деньги, восстановление.
-
-Главный принцип:
-Не камень. Опора.
-
-Команды:
-/morning — утренний ритуал
-/evening — вечерний разбор
-/status — статус вечера для семьи
-/phrase — сформулировать фразу
-/silent — разобрать молчание
-/voice — голос и дикция
-/look — образ
-/reset — вернуться в спокойствие
-/money — финансы
-/expense — записать расход
-/income — записать доход`;
+    return `Опора включена.\n\nЯ тут не для того, чтобы давить или стыдить.\nЯ помогаю держать курс: внешний вид, голос, семья, работа, деньги, восстановление.\n\nГлавный принцип:\nНе камень. Опора.\n\nКоманды:\n/morning — утренний ритуал\n/evening — вечерний разбор\n/status — статус вечера для семьи\n/phrase — сформулировать фразу\n/silent — разобрать молчание\n/voice — голос и дикция\n/look — образ\n/reset — вернуться в спокойствие\n/today — что делать сейчас\n/money — финансы\n/expense — записать расход\n/income — записать доход`;
   }
 
   private helpText() {
-    return `Команды Опоры:
-
-Рутины:
-/morning
-/evening
-/reset
-/podcast
-
-Коммуникация:
-/status желтый 40 минут
-/phrase <ситуация>
-/silent
-/voice
-
-Стиль:
-/look
-
-Финансы:
-/expense 245 happy meal сыну
-/income 4000 eur вторая работа
-/money
-/debt
-/reserve
-/car
-/canbuy 1800 щетка для бороды
-/categories`;
+    return `Команды Опоры:\n\nРутины:\n/morning\n/evening\n/reset\n/today\n/podcast\n\nКоммуникация:\n/status желтый 40 минут\n/phrase <ситуация>\n/silent\n/voice\n\nСтиль:\n/look\n\nФинансы:\n/expense 245 happy meal сыну\n/income 4000 eur вторая работа\n/money\n/setlimit доставки 15000\n/limits\n/paydebt 10000 кредитка 1\n/save 10000 резерв\n/weekmoney\n/month\n/debt\n/reserve\n/car\n/canbuy 1800 щетка для бороды\n/categories\n/aiusage`;
   }
 
   private morningText() {
-    return `Доброе утро.
+    return `Доброе утро.\n\nСегодня фокус: спокойный голос и присутствие.\n\nЧеклист:\n☐ вода\n☐ умывание\n☐ крем / SPF\n☐ борода\n☐ руки / ногти\n☐ одежда без хаоса\n☐ ключи\n☐ кошелёк\n☐ кофе\n☐ один главный фокус дня\n\nГолос:\nСкажи 3 раза медленно:\n“Я говорю спокойно. Я не исчезаю. Мне не нужно спешить.”\n\nФинансы:\n☐ записывать расходы\n☐ safe food сына — планово, не ругаем\n☐ кредитки важнее авто-фонда\n\nОдин шаг:\nсегодня один раз скажи “мне важно” вместо молчания.`;
+  }
 
-Сегодня фокус: спокойный голос и присутствие.
-
-Чеклист:
-☐ вода
-☐ умывание
-☐ крем / SPF
-☐ борода
-☐ руки / ногти
-☐ одежда без хаоса
-☐ ключи
-☐ кошелёк
-☐ кофе
-☐ один главный фокус дня
-
-Голос:
-Скажи 3 раза медленно:
-“Я говорю спокойно. Я не исчезаю. Мне не нужно спешить.”
-
-Финансы:
-☐ записывать расходы
-☐ safe food сына — планово, не ругаем
-☐ кредитки важнее авто-фонда
-
-Один шаг:
-сегодня один раз скажи “мне важно” вместо молчания.`;
+  private todayText() {
+    return `Опора на сейчас:\n\n1. Не решаем всю жизнь.\n2. Выбираем один ближайший шаг.\n3. Деньги — записываем, не ругаем.\n4. Голос — медленнее на 10%.\n5. Дома — не исчезать, а назвать состояние.\n\nФраза дня:\n“Я могу быть опорой, не превращаясь в камень.”`;
   }
 
   private resetText() {
-    return `Стоп.
-
-Сейчас не решаем всю жизнь.
-
-1. Вдох.
-2. Медленный выдох.
-3. Назови одну ближайшую задачу.
-4. Что можно сделать за 10 минут?
-
-Напиши:
-“Сейчас мне нужно...”`;
+    return `Стоп.\n\nСейчас не решаем всю жизнь.\n\n1. Вдох.\n2. Медленный выдох.\n3. Назови одну ближайшую задачу.\n4. Что можно сделать за 10 минут?\n\nНапиши:\n“Сейчас мне нужно...”`;
   }
 
   private voiceText() {
-    return `Голосовая тренировка на 5 минут.
-
-1. Дыхание:
-вдох 4 секунды, выдох 6 секунд — 5 раз.
-
-2. Резонанс:
-“ммм-ма”
-“ммм-мо”
-“ммм-му”
-
-3. Дикция:
-бра-бро-бру-бры-бре
-дра-дро-дру-дры-дре
-кра-кро-кру-кры-кре
-
-4. Фраза:
-“Я готов говорить спокойно, но не готов ругаться.”
-
-Скажи её 3 раза:
-— обычно
-— медленнее
-— с паузой после “спокойно”`;
+    return `Голосовая тренировка на 5 минут.\n\n1. Дыхание: вдох 4 секунды, выдох 6 секунд — 5 раз.\n2. Резонанс: “ммм-ма”, “ммм-мо”, “ммм-му”.\n3. Дикция: бра-бро-бру-бры-бре, дра-дро-дру-дры-дре.\n4. Фраза: “Я готов говорить спокойно, но не готов ругаться.”`;
   }
 
   private lookText() {
-    return `Куда собираем образ?
-
-1 — офис
-2 — конференция
-3 — прогулка
-4 — семейный выход
-5 — встреча
-6 — рыбалка
-7 — день рождения
-
-Базовое правило:
-тёмная плотная база + структура сверху + чистая обувь + часы + ключи/кошелёк без хаоса.`;
+    return `Куда собираем образ?\n\n1 — офис\n2 — конференция\n3 — прогулка\n4 — семейный выход\n5 — встреча\n6 — рыбалка\n7 — день рождения\n\nБазовое правило:\nтёмная плотная база + структура сверху + чистая обувь + часы + ключи/кошелёк без хаоса.`;
   }
 
   private statusText(text: string) {
     const normalized = text.toLowerCase();
     const minutes = normalized.match(/(\d+)/)?.[1];
-
-    if (normalized.includes('зел')) {
-      return 'Еду. Сегодня без рабочих хвостов, дома нормально включаюсь.';
-    }
-
-    if (normalized.includes('жел') || normalized.includes('жёл')) {
-      return `Еду. Сегодня жёлтый: нужно примерно ${minutes ?? '40'} минут закрыть задачу по работе. Я понимаю, что ты тоже устала. Дома спокойно договоримся, я закрываю хвост и потом беру дочку/дом на себя.`;
-    }
-
-    if (normalized.includes('крас')) {
-      return `Еду. Сегодня красный: нужно примерно ${minutes ?? '90'} минут закрыть критичную задачу. Я понимаю, что ты тоже устала. Давай дома спокойно договоримся: после этого беру на себя дочку/купание/укладывание.`;
-    }
-
-    return `Выбери статус вечера:
-
-/status зелёный
-/status жёлтый 40 минут
-/status красный 90 минут`;
+    if (normalized.includes('зел')) return 'Еду. Сегодня без рабочих хвостов, дома нормально включаюсь.';
+    if (normalized.includes('жел') || normalized.includes('жёл')) return `Еду. Сегодня жёлтый: нужно примерно ${minutes ?? '40'} минут закрыть задачу по работе. Я понимаю, что ты тоже устала. Дома спокойно договоримся, я закрываю хвост и потом беру дочку/дом на себя.`;
+    if (normalized.includes('крас')) return `Еду. Сегодня красный: нужно примерно ${minutes ?? '90'} минут закрыть критичную задачу. Я понимаю, что ты тоже устала. Давай дома спокойно договоримся: после этого беру на себя дочку/купание/укладывание.`;
+    return `Выбери статус вечера:\n\n/status зелёный\n/status жёлтый 40 минут\n/status красный 90 минут`;
   }
 
   private silentText() {
-    return `Окей. Не ругаем себя. Разбираем.
-
-Ответь коротко:
-1. Где замолчал?
-2. Что хотел сказать?
-3. Чего боялся?
-4. Что можно сказать одной спокойной фразой?
-
-Фраза-заготовка:
-“Я завис. Мне нужна минута, я хочу сказать нормально.”`;
+    return `Окей. Не ругаем себя. Разбираем.\n\nОтветь коротко:\n1. Где замолчал?\n2. Что хотел сказать?\n3. Чего боялся?\n4. Что можно сказать одной спокойной фразой?\n\nФраза-заготовка:\n“Я завис. Мне нужна минута, я хочу сказать нормально.”`;
   }
 
   private eveningText() {
-    return `Вечерний разбор. Без самобичевания.
-
-Ответь по пунктам:
-1. Где сегодня промолчал?
-2. Что хотел сказать?
-3. Чего боялся?
-4. Что сделал для семьи?
-5. Что сделал для себя?
-6. Какие расходы были плановыми?
-7. Какие были хаотичными?
-8. Один шаг на завтра?`;
+    return `Вечерний разбор. Без самобичевания.\n\nОтветь по пунктам:\n1. Где сегодня промолчал?\n2. Что хотел сказать?\n3. Чего боялся?\n4. Что сделал для семьи?\n5. Что сделал для себя?\n6. Какие расходы были плановыми?\n7. Какие были хаотичными?\n8. Один шаг на завтра?`;
   }
 
   private podcastText() {
-    return `Аудио на сегодня:
-
-Если есть ресурс:
-10–15 минут Toastmasters / TED communication / Manager Tools.
-
-Если голова перегружена:
-музыка или тишина. Это тоже часть системы.
-
-Правило:
-один выпуск → одна мысль → одно действие.`;
+    return `Аудио на сегодня:\n\nЕсли есть ресурс: 10–15 минут Toastmasters / TED communication / Manager Tools.\nЕсли голова перегружена: музыка или тишина. Это тоже часть системы.\n\nПравило: один выпуск → одна мысль → одно действие.`;
   }
 
   private categoriesText() {
-    return `Категории расходов:
-
-Аренда
-Коммуналка
-Школа сына
-Дочка
-Продукты домой
-Safe food сына
-Кафе/доставки семьи
-Кофе/перекусы
-Сиделки/дедушка
-Медицина/аптека
-Транспорт/такси
-Связь/интернет
-Подписки
-Одежда/обувь
-Уход/барбер/маникюр
-EDC/стиль
-Кредитки
-Резерв
-Авто-фонд
-Прочее`;
+    return `Категории расходов:\n\nАренда\nКоммуналка\nШкола сына\nДочка\nПродукты домой\nSafe food сына\nКафе/доставки семьи\nКофе/перекусы\nСиделки/дедушка\nМедицина/аптека\nТранспорт/такси\nСвязь/интернет\nПодписки\nОдежда/обувь\nУход/барбер/маникюр\nEDC/стиль\nКредитки\nРезерв\nАвто-фонд\nПрочее`;
   }
 
   private debtText() {
-    return `Кредитки:
-
-1. Кредитка 1: остаток 70 000 грн, мин. платёж 4 000 грн.
-2. Кредитка 2: остаток 70 000 грн, мин. платёж 4 000 грн.
-
-Итого: 140 000 грн.
-
-Фокус:
-закрыть кредитки до авто-фонда.`;
+    return `Кредитки:\n\n1. Кредитка 1: остаток 70 000 грн, мин. платёж 4 000 грн.\n2. Кредитка 2: остаток 70 000 грн, мин. платёж 4 000 грн.\n\nДля погашения: /paydebt 10000 кредитка 1\n\nФокус: закрыть кредитки до авто-фонда.`;
   }
 
   private reserveText() {
-    return `Резерв:
-
-Минимальный: 300 000 грн.
-Рабочий: 500 000 грн.
-Спокойный: 900 000–1 000 000 грн.
-
-Пока резерв меньше 300 000 грн — крупные покупки охлаждаем.`;
+    return `Резерв:\n\nМинимальный: 300 000 грн.\nРабочий: 500 000 грн.\nСпокойный: 900 000–1 000 000 грн.\n\nПополнить: /save 10000 резерв\nПока резерв меньше 300 000 грн — крупные покупки охлаждаем.`;
   }
 
   private carText() {
-    return `План машины к зиме:
-
-Этап 1: кредитки в ноль — 140 000 грн.
-Этап 2: резерв — минимум 300 000 грн.
-Этап 3: авто-фонд.
-
-Shortlist:
-- Jeep Grand Cherokee
-- Toyota Highlander
-- Lexus RX
-- Ford Edge
-- Subaru Outback
-- Honda CR-V
-- Jeep Compass Trailhawk / Limited
-
-Исключено:
-- Mitsubishi L200 — задний ряд не подходит семье.`;
+    return `План машины к зиме:\n\nЭтап 1: кредитки в ноль — 140 000 грн.\nЭтап 2: резерв — минимум 300 000 грн.\nЭтап 3: авто-фонд.\n\nПополнить авто-фонд: /save 5000 авто\n\nShortlist:\n- Jeep Grand Cherokee\n- Toyota Highlander\n- Lexus RX\n- Ford Edge\n- Subaru Outback\n- Honda CR-V\n- Jeep Compass Trailhawk / Limited\n\nИсключено:\n- Mitsubishi L200 — задний ряд не подходит семье.`;
   }
 
   private baseUserContext() {
