@@ -3,9 +3,8 @@ FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
-
 COPY prisma ./prisma
+RUN npm install
 RUN npx prisma@6.0.1 generate
 
 COPY tsconfig*.json ./
