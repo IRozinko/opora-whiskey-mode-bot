@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: opora-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: opora
+      POSTGRES_PASSWORD: opora_password
+      POSTGRES_DB: opora
+    ports:
+      - "5432:5432"
+    volumes:
+      - opora_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opora -d opora"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  opora_postgres_data:
